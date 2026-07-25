@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/FACorreiaa/skyvisor-go-shared/domain"
+	"github.com/SkyvisorInsights/skyvisor-go-shared/domain"
 )
 
 func (c *Client) ListPATs(ctx context.Context, accessToken string) ([]domain.PAT, error) {

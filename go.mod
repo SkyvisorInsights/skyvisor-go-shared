@@ -1,3 +1,3 @@
-module github.com/FACorreiaa/skyvisor-go-shared
+module github.com/SkyvisorInsights/skyvisor-go-shared
 
 go 1.26.5

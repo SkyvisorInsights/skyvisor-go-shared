@@ -16,7 +16,7 @@ Shared Go module for Skyvisor product types and the typed HTTP client against **
 Until this is its own remote repo, dependents use:
 
 ```go
-replace github.com/FACorreiaa/skyvisor-go-shared => ../skyvisor-go-shared
+replace github.com/SkyvisorInsights/skyvisor-go-shared => ../skyvisor-go-shared
 ```
 
 ## Entitlements

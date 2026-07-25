@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FACorreiaa/skyvisor-go-shared/domain"
+	"github.com/SkyvisorInsights/skyvisor-go-shared/domain"
 )
 
 var ErrNotFound = errors.New("resource not found")

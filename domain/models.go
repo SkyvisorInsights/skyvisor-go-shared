@@ -659,6 +659,7 @@ type DecisionTrustMetrics struct {
 	SuccessfulActions     int              `json:"successful_actions"`
 	ActionSuccessRate     float64          `json:"action_success_rate"`
 	AvoidedCostMinor      int64            `json:"avoided_cost_minor"`
+	Currency              string           `json:"currency,omitempty"`
 	Breakdowns            []TrustBreakdown `json:"breakdowns"`
 	GeneratedAt           time.Time        `json:"generated_at"`
 }
@@ -669,6 +670,52 @@ type TrustBreakdown struct {
 	Evaluated         int     `json:"evaluated"`
 	Precision         float64 `json:"precision"`
 	FalsePositiveRate float64 `json:"false_positive_rate"`
+}
+
+// Trust share bounds. A trust share always expires.
+const (
+	TrustShareDefaultTTLHours = 168
+	TrustShareMaxTTLHours     = 720
+	// TrustLowSampleThreshold is the evaluated-prediction count below which a
+	// ratio is presented as low confidence rather than as a headline number.
+	TrustLowSampleThreshold = 20
+)
+
+// CreateTrustShare is the request body for publishing a trust snapshot.
+type CreateTrustShare struct {
+	Label             string `json:"label,omitempty"`
+	IncludeFinancials bool   `json:"include_financials"`
+	TTLHours          int    `json:"ttl_hours,omitempty"`
+}
+
+// TrustShareLink is a public, revocable, point-in-time trust report.
+type TrustShareLink struct {
+	Token             string    `json:"token"`
+	Label             string    `json:"label,omitempty"`
+	IncludeFinancials bool      `json:"include_financials"`
+	URLPath           string    `json:"url_path"`
+	GeneratedAt       time.Time `json:"generated_at"`
+	ExpiresAt         time.Time `json:"expires_at"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+// PublicTrustReport is the unauthenticated, redacted view of a trust snapshot.
+// AvoidedCostMinor is a pointer on purpose: nil means the publisher withheld
+// financials, whereas 0 means nothing was avoided. Collapsing the two would
+// publish "zero avoided" about an account that merely opted out.
+type PublicTrustReport struct {
+	Label                 string           `json:"label,omitempty"`
+	EvaluatedPredictions  int              `json:"evaluated_predictions"`
+	ExecutedActions       int              `json:"executed_actions"`
+	Precision             float64          `json:"precision"`
+	FalsePositiveRate     float64          `json:"false_positive_rate"`
+	MedianLeadTimeMinutes float64          `json:"median_lead_time_minutes"`
+	ActionSuccessRate     float64          `json:"action_success_rate"`
+	AvoidedCostMinor      *int64           `json:"avoided_cost_minor,omitempty"`
+	Currency              string           `json:"currency,omitempty"`
+	Breakdowns            []TrustBreakdown `json:"breakdowns,omitempty"`
+	GeneratedAt           time.Time        `json:"generated_at"`
+	ExpiresAt             time.Time        `json:"expires_at"`
 }
 
 type WebhookIntegration struct {

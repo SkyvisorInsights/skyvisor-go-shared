@@ -554,6 +554,30 @@ func (c *Client) DecisionTrustMetrics(ctx context.Context, accessToken string) (
 	return metrics, err
 }
 
+func (c *Client) CreateTrustShare(ctx context.Context, accessToken string, input domain.CreateTrustShare) (domain.TrustShareLink, error) {
+	var link domain.TrustShareLink
+	err := c.do(ctx, http.MethodPost, "/v1/operations/trust/share", accessToken, input, &link)
+	return link, err
+}
+
+func (c *Client) TrustShares(ctx context.Context, accessToken string) ([]domain.TrustShareLink, error) {
+	var payload struct {
+		Data []domain.TrustShareLink `json:"data"`
+	}
+	err := c.do(ctx, http.MethodGet, "/v1/operations/trust/shares", accessToken, nil, &payload)
+	return payload.Data, err
+}
+
+func (c *Client) RevokeTrustShare(ctx context.Context, accessToken, token string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/trust-shares/"+url.PathEscape(token), accessToken, nil, nil)
+}
+
+func (c *Client) PublicTrustReport(ctx context.Context, token string) (domain.PublicTrustReport, error) {
+	var report domain.PublicTrustReport
+	err := c.do(ctx, http.MethodGet, "/public/trust-shares/"+url.PathEscape(token), "", nil, &report)
+	return report, err
+}
+
 func (c *Client) ListWebhookIntegrations(ctx context.Context, accessToken string) ([]domain.WebhookIntegration, error) {
 	var payload struct {
 		Data []domain.WebhookIntegration `json:"data"`

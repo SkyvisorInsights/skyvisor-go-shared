@@ -222,8 +222,10 @@ const (
 )
 
 // ClientHeaderMCP is sent by skyvisor-mcp so the API can meter agent traffic.
-const ClientHeaderMCP = "mcp"
-const ClientHeaderName = "X-SkyVisor-Client"
+const (
+	ClientHeaderMCP  = "mcp"
+	ClientHeaderName = "X-SkyVisor-Client"
+)
 
 // IsPaidPlan reports whether the plan unlocks Pro-level watches/analytics.
 func IsPaidPlan(plan Plan) bool {

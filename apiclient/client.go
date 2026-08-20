@@ -16,10 +16,12 @@ import (
 	"github.com/SkyvisorInsights/skyvisor-go-shared/domain"
 )
 
-var ErrNotFound = errors.New("resource not found")
-var ErrUnauthorized = errors.New("API session is not authorized")
-var ErrPaymentRequired = errors.New("plan upgrade required")
-var ErrConflict = errors.New("resource conflict")
+var (
+	ErrNotFound        = errors.New("resource not found")
+	ErrUnauthorized    = errors.New("API session is not authorized")
+	ErrPaymentRequired = errors.New("plan upgrade required")
+	ErrConflict        = errors.New("resource conflict")
+)
 
 // Client is a thin, typed HTTP client for skyvisor-api. Every call takes the
 // caller's OIDC access token; the client itself holds no user state.
@@ -70,7 +72,7 @@ func (c *Client) StreamEvents(ctx context.Context, accessToken string) (io.ReadC
 		return nil, ErrUnauthorized
 	}
 	if response.StatusCode >= 400 {
-		defer response.Body.Close()
+		defer func() { _ = response.Body.Close() }()
 		return nil, apiError(response)
 	}
 	return response.Body, nil
@@ -152,10 +154,10 @@ func (c *Client) ImportTripPDF(ctx context.Context, accessToken, filename string
 	if err != nil {
 		return domain.Trip{}, fmt.Errorf("build upload: %w", err)
 	}
-	if _, err := io.Copy(part, pdf); err != nil {
+	if _, err = io.Copy(part, pdf); err != nil {
 		return domain.Trip{}, fmt.Errorf("copy upload: %w", err)
 	}
-	if err := writer.Close(); err != nil {
+	if err = writer.Close(); err != nil {
 		return domain.Trip{}, fmt.Errorf("finalize upload: %w", err)
 	}
 
@@ -293,7 +295,7 @@ func (c *Client) PublicShare(ctx context.Context, token string) (domain.PublicSh
 	if err != nil {
 		return domain.PublicShare{}, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode == http.StatusNotFound {
 		return domain.PublicShare{}, ErrNotFound
 	}
@@ -426,7 +428,7 @@ func (c *Client) AnalyticsExportCSV(ctx context.Context, accessToken string, q A
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 2<<20))
 	switch {
 	case response.StatusCode == http.StatusUnauthorized:

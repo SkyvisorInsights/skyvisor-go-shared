@@ -13,11 +13,11 @@ func TestTrustShareClientMethods(t *testing.T) {
 	var gotPath, gotMethod string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath, gotMethod = r.URL.Path, r.Method
-		switch {
-		case r.Method == http.MethodPost:
+		switch r.Method {
+		case http.MethodPost:
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"token":"abc","url_path":"/trust/abc","include_financials":false}`))
-		case r.Method == http.MethodDelete:
+		case http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			_, _ = w.Write([]byte(`{"data":[{"token":"abc"}]}`))

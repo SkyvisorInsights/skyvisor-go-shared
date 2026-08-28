@@ -214,6 +214,25 @@ const (
 	BusinessAssistantDailyLimit = 500
 )
 
+// Situation history windows, in hours.
+//
+// How far back into the observation record a plan may read. Free sees the
+// current picture; the paid tiers see enough to review a disruption after the
+// fact.
+const (
+	FreeSituationHistoryHours     = 6
+	ProSituationHistoryHours      = 72
+	BusinessSituationHistoryHours = 720
+)
+
+// Situation layer tiers. Named rather than derived from the plan so the client
+// can render its rail without duplicating the mapping.
+const (
+	SituationTierCore     = "core"
+	SituationTierPro      = "pro"
+	SituationTierBusiness = "business"
+)
+
 // Usage kinds for metering.
 const (
 	UsageKindMCPRead   = "mcp_read"
@@ -248,6 +267,18 @@ type Entitlements struct {
 	MCPDailyReadLimit   int  `json:"mcp_daily_read_limit"`   // -1 unlimited
 	MCPDailyActionLimit int  `json:"mcp_daily_action_limit"` // -1 unlimited; 0 = no actions
 	AssistantDailyLimit int  `json:"assistant_daily_limit"`  // -1 unlimited
+
+	// SituationLayerTier names the situation layers this plan unlocks:
+	// core, pro, or business. Sent so the client renders its rail from the
+	// server's mapping rather than reimplementing it.
+	SituationLayerTier string `json:"situation_layer_tier"`
+
+	// SituationHistoryHours is how far back the plan may read observations.
+	SituationHistoryHours int `json:"situation_history_hours"`
+
+	// CanExportSituation gates downloading a layer as a file. Narrower than
+	// reading it: several upstreams allow display but restrict redistribution.
+	CanExportSituation bool `json:"can_export_situation"`
 }
 
 // UsageSnapshot is the caller's UTC-day counters vs plan limits.
@@ -291,12 +322,36 @@ type Preferences struct {
 
 // StreamEvent is pushed on the authenticated SSE channel.
 type StreamEvent struct {
-	Type      string    `json:"type"`
-	AccountID string    `json:"-"`
-	WatchID   string    `json:"watch_id,omitempty"`
-	Flight    *Flight   `json:"flight,omitempty"`
-	Message   string    `json:"message,omitempty"`
-	At        time.Time `json:"at"`
+	Type string `json:"type"`
+
+	// AccountID targets Publish. Ignored by Broadcast, which fans an event out
+	// to every subscriber because situation data describes the world rather
+	// than an account.
+	AccountID string `json:"-"`
+
+	WatchID   string          `json:"watch_id,omitempty"`
+	Flight    *Flight         `json:"flight,omitempty"`
+	Situation *SituationDelta `json:"situation,omitempty"`
+	Message   string          `json:"message,omitempty"`
+	At        time.Time       `json:"at"`
+}
+
+// SituationDelta says what changed in one situation layer.
+//
+// Carried on a stream event so a client can refresh only the layer that moved
+// rather than refetching everything, and can decide whether the change is worth
+// interrupting anyone over.
+type SituationDelta struct {
+	Layer   string `json:"layer"`
+	Added   int    `json:"added"`
+	Updated int    `json:"updated"`
+	Removed int    `json:"removed"`
+
+	// MaxSeverity and Headline describe the worst thing in the batch, which is
+	// what an alert is raised about.
+	MaxSeverity string `json:"max_severity,omitempty"`
+	Headline    string `json:"headline,omitempty"`
+	Score       int    `json:"score,omitempty"`
 }
 
 // AirportBoard is arrivals and/or departures for one IATA airport.
@@ -768,4 +823,107 @@ type PAT struct {
 type CreatedPAT struct {
 	Token     PAT    `json:"token"`
 	Plaintext string `json:"plaintext"`
+}
+
+// SituationLayer is one entry in the global situation catalog.
+//
+// Clients build their layer rail from these rather than hardcoding a list, so
+// a layer added server-side appears without a client release.
+//
+// Entitled and Available are distinct states. Entitled is false when the
+// caller's plan does not unlock the layer, and the client offers an upgrade.
+// Available is false when the deployment has no credential registered for the
+// provider, and the client says so instead — an upgrade would not help.
+//
+// Attribution and Licence are always populated. Several upstream sources permit
+// reuse only with credit, and some forbid commercial use, so the terms travel
+// with the data to whatever renders it.
+type SituationLayer struct {
+	ID              string         `json:"id"`
+	Label           string         `json:"label"`
+	Category        string         `json:"category"`
+	Kind            string         `json:"kind"`     // map | news | indicator
+	Geometry        string         `json:"geometry"` // none | point | polygon
+	Provider        string         `json:"provider"`
+	MinPlan         Plan           `json:"min_plan"`
+	Entitled        bool           `json:"entitled"`
+	Available       bool           `json:"available"`
+	IntervalSeconds int            `json:"interval_seconds"`
+	Attribution     string         `json:"attribution"`
+	Licence         string         `json:"licence"`
+	Count           int            `json:"count"`
+	Freshness       *DataFreshness `json:"freshness,omitempty"`
+}
+
+// SituationEvent is one item in the situation news rail.
+//
+// Language and Country are empty when the upstream sent a name this deployment
+// has no mapping for. The display names it did send are preserved in
+// Attributes, so a client can always show something truthful rather than a
+// guessed code.
+type SituationEvent struct {
+	ID          string            `json:"id"`
+	Layer       string            `json:"layer"`
+	Category    string            `json:"category"`
+	Severity    string            `json:"severity"`
+	Score       int               `json:"score"`
+	Headline    string            `json:"headline"`
+	Summary     string            `json:"summary,omitempty"`
+	Link        string            `json:"link,omitempty"`
+	Language    string            `json:"language,omitempty"`
+	Country     string            `json:"country,omitempty"`
+	Attributes  map[string]string `json:"attributes,omitempty"`
+	ObservedAt  time.Time         `json:"observed_at"`
+	Attribution string            `json:"attribution,omitempty"`
+}
+
+// SituationNewsPage is a keyset-paged slice of the rail.
+//
+// NextCursor is empty at the end of the feed. Keyset rather than an offset
+// because the rail is prepended to constantly, and an offset page shifts under
+// the reader between requests.
+type SituationNewsPage struct {
+	Data       []SituationEvent `json:"data"`
+	NextCursor string           `json:"next_cursor,omitempty"`
+}
+
+// SituationPointBlock is one upstream's answer about one place.
+//
+// Present-but-unknown rather than absent when a fetch fails: the caller asked
+// for it, and saying "we could not reach this" is different information from
+// "you cannot have this". Absent means not requested or not entitled.
+type SituationPointBlock struct {
+	Values     map[string]float64 `json:"values,omitempty"`
+	Units      map[string]string  `json:"units,omitempty"`
+	Attributes map[string]string  `json:"attributes,omitempty"`
+
+	// Raw is the original bulletin, for METAR and TAF. Pilots read these
+	// directly and the decoded fields lose detail the raw text keeps.
+	Raw string `json:"raw,omitempty"`
+
+	ObservedAt time.Time `json:"observed_at,omitzero"`
+	ValidFrom  time.Time `json:"valid_from,omitzero"`
+	ValidTo    time.Time `json:"valid_to,omitzero"`
+
+	Freshness   *DataFreshness `json:"freshness,omitempty"`
+	Attribution string         `json:"attribution,omitempty"`
+}
+
+// SituationPoint is everything known about one location right now.
+//
+// Each block is fetched independently and fails independently: one slow
+// upstream degrades its own block rather than the response.
+type SituationPoint struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	ICAO      string  `json:"icao,omitempty"`
+	Station   string  `json:"station,omitempty"`
+
+	Weather    *SituationPointBlock `json:"weather,omitempty"`
+	Marine     *SituationPointBlock `json:"marine,omitempty"`
+	AirQuality *SituationPointBlock `json:"air_quality,omitempty"`
+	METAR      *SituationPointBlock `json:"metar,omitempty"`
+	TAF        *SituationPointBlock `json:"taf,omitempty"`
+
+	GeneratedAt time.Time `json:"generated_at"`
 }

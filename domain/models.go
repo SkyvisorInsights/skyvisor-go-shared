@@ -203,8 +203,13 @@ const BusinessTeamSeatLimit = 5
 
 // Daily usage limits (-1 = unlimited). UTC calendar day window.
 const (
-	FreeMCPDailyReadLimit       = 100
-	FreeMCPDailyActionLimit     = 0 // Free MCP is read-only
+	FreeMCPDailyReadLimit = 100
+	// Free gets a small non-zero action budget so an agent's first write
+	// succeeds at the moment the user is most willing. Abuse stays bounded by
+	// FreeWatchLimit and the per-account rate limiter, and the only action
+	// endpoints Free can reach are watch and trip creation: webhooks,
+	// operational cases and logistics are all gated on CanAccessLogistics.
+	FreeMCPDailyActionLimit     = 5
 	FreeAssistantDailyLimit     = 10
 	ProMCPDailyReadLimit        = 2000
 	ProMCPDailyActionLimit      = 200
@@ -817,6 +822,39 @@ type PAT struct {
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+}
+
+// OAuth scopes a connector may be granted. Acting implies reading.
+const (
+	OAuthScopeRead = "skyvisor:read"
+	OAuthScopeAct  = "skyvisor:act"
+)
+
+// OAuthClientInfo is the trustworthy description of a registered MCP client,
+// used by the consent screen so the name shown to the user comes from the
+// server rather than from the query string being rendered.
+type OAuthClientInfo struct {
+	ClientID     string    `json:"client_id"`
+	ClientName   string    `json:"client_name"`
+	RedirectURIs []string  `json:"redirect_uris"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// ApproveOAuthGrant is the consent decision sent to the API. Every field is
+// re-validated server-side against the registered client, so nothing here is
+// trusted merely because it arrived.
+type ApproveOAuthGrant struct {
+	ClientID      string `json:"client_id"`
+	RedirectURI   string `json:"redirect_uri"`
+	CodeChallenge string `json:"code_challenge"`
+	State         string `json:"state,omitempty"`
+	Scope         string `json:"scope"`
+	Resource      string `json:"resource,omitempty"`
+}
+
+// OAuthGrantApproval carries where to send the browser once a code is minted.
+type OAuthGrantApproval struct {
+	RedirectTo string `json:"redirect_to"`
 }
 
 // CreatedPAT carries the one-time plaintext next to the stored metadata.

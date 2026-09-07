@@ -341,6 +341,44 @@ type StreamEvent struct {
 	At        time.Time       `json:"at"`
 }
 
+// Agent inbox event types mirror the watch stream event types.
+
+// AgentInboxEvent is one durable notification waiting for an agent.
+//
+// The SSE hub drops events for consumers that are not reading, which is right
+// for a browser tab and wrong for an agent: an agent exists only between turns
+// and is disconnected almost all of the time. These rows persist until
+// acknowledged so nothing is missed in the gap.
+type AgentInboxEvent struct {
+	ID      string    `json:"id"`
+	Type    string    `json:"type"`
+	WatchID string    `json:"watch_id,omitempty"`
+	Flight  *Flight   `json:"flight,omitempty"`
+	Message string    `json:"message,omitempty"`
+	At      time.Time `json:"at"`
+}
+
+// AgentInboxPage is a drain of the queue, oldest first.
+type AgentInboxPage struct {
+	Events []AgentInboxEvent `json:"events"`
+	// Pending counts everything unacknowledged, including beyond this page, so
+	// an agent can tell whether draining again is worthwhile.
+	Pending int `json:"pending"`
+	// Truncated reports that Pending exceeds what this page returned.
+	Truncated bool `json:"truncated"`
+}
+
+// AckAgentInbox acknowledges events by ID.
+type AckAgentInbox struct {
+	EventIDs []string `json:"event_ids"`
+}
+
+// AgentInboxAck reports the result of acknowledging.
+type AgentInboxAck struct {
+	Acknowledged int `json:"acknowledged"`
+	Pending      int `json:"pending"`
+}
+
 // SituationDelta says what changed in one situation layer.
 //
 // Carried on a stream event so a client can refresh only the layer that moved
